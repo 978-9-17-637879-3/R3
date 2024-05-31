@@ -84,88 +84,94 @@ struct R3Options {
 int main(int argc, char **argv) {
   std::ios_base::sync_with_stdio(false);
 
-  R3Options options = readOptions(argc, argv);
+  try {
+    R3Options options = readOptions(argc, argv);
 
-  // Root serach directory that doesn't end with / should have
-  // a trailing slash added, which will prevent it from being renamed.
-  auto dirPath = std::string_view(options.rootSearchDirectory.c_str());
-  if (dirPath.back() != '/') {
-    options.rootSearchDirectory =
-        fs::path(std::string(options.rootSearchDirectory) + "/");
-  }
-
-  if (!fs::is_directory(options.rootSearchDirectory)) {
-    std::cerr << "<dir> must be a directory!" << std::endl;
-    return 1;
-  }
-
-  if (options.find.empty()) {
-    std::cerr << "<find> must not be empty!" << std::endl;
-    return 1;
-  }
-
-  std::regex findRegex(options.find, std::regex_constants::ECMAScript);
-
-  std::vector<std::pair<fs::path, fs::path>> pathsToRename;
-  std::deque<fs::path> search;
-
-  search.push_back(options.rootSearchDirectory);
-  while (!search.empty()) {
-    if (options.verbose) {
-      std::cout << "Searching " << search.size() << " inodes... Matched "
-                << pathsToRename.size() << "...\n";
+    // Root serach directory that doesn't end with / should have
+    // a trailing slash added, which will prevent it from being renamed.
+    auto dirPath = std::string_view(options.rootSearchDirectory.c_str());
+    if (dirPath.back() != '/') {
+      options.rootSearchDirectory =
+          fs::path(std::string(options.rootSearchDirectory) + "/");
     }
 
-    auto path = search.front();
-    search.pop_front();
-
-    if (std::regex_search(path.filename().c_str(), findRegex)) {
-      auto renamedPath = path;
-      renamedPath.replace_filename(std::regex_replace(
-          path.filename().c_str(), findRegex, options.replace));
-
-      pathsToRename.emplace_back(path, std::move(renamedPath));
+    if (!fs::is_directory(options.rootSearchDirectory)) {
+      std::cerr << "<dir> must be a directory!" << std::endl;
+      return 1;
     }
 
-    if (fs::is_directory(path)) {
-      for (auto const &child : fs::directory_iterator(path)) {
-        search.push_back(child);
+    if (options.find.empty()) {
+      std::cerr << "<find> must not be empty!" << std::endl;
+      return 1;
+    }
+
+    std::regex findRegex(options.find, std::regex_constants::ECMAScript);
+
+    std::vector<std::pair<fs::path, fs::path>> pathsToRename;
+    std::deque<fs::path> search;
+
+    search.push_back(options.rootSearchDirectory);
+    while (!search.empty()) {
+      if (options.verbose) {
+        std::cout << "Searching " << search.size() << " inodes... Matched "
+                  << pathsToRename.size() << "...\n";
+      }
+
+      auto path = search.front();
+      search.pop_front();
+
+      if (std::regex_search(path.filename().c_str(), findRegex)) {
+        auto renamedPath = path;
+        renamedPath.replace_filename(std::regex_replace(
+            path.filename().c_str(), findRegex, options.replace));
+
+        pathsToRename.emplace_back(path, std::move(renamedPath));
+      }
+
+      if (fs::is_directory(path)) {
+        for (auto const &child : fs::directory_iterator(path)) {
+          search.push_back(child);
+        }
       }
     }
-  }
 
-  for (auto pathIt = pathsToRename.rbegin(); pathIt != pathsToRename.rend();
-       ++pathIt) {
-    auto const &[path, renamedPath] = *pathIt;
+    for (auto pathIt = pathsToRename.rbegin(); pathIt != pathsToRename.rend();
+         ++pathIt) {
+      auto const &[path, renamedPath] = *pathIt;
 
-    if (options.verbose) {
-      std::cout << path << ' ' << renamedPath << '\n';
-    }
-  }
-
-  std::cout << "Matched " << pathsToRename.size() << " inodes.\n";
-
-  if (options.dryRun) {
-    return 0;
-  }
-
-  if (!pathsToRename.empty()) {
-    std::cout << "Dry run is not enabled. Are you sure you want to procede?\n";
-    char prompt = '\0';
-    while (prompt != 'Y' && prompt != 'N') {
-      std::cout << "[Y/N] ";
-      std::cout.flush();
-      std::cin >> prompt;
+      if (options.verbose) {
+        std::cout << path << ' ' << renamedPath << '\n';
+      }
     }
 
-    if (prompt == 'N') {
+    std::cout << "Matched " << pathsToRename.size() << " inodes.\n";
+
+    if (options.dryRun) {
       return 0;
     }
-  }
 
-  for (auto pathIt = pathsToRename.rbegin(); pathIt != pathsToRename.rend();
-       ++pathIt) {
-    auto const &[path, renamedPath] = *pathIt;
-    fs::rename(path, renamedPath);
+    if (!pathsToRename.empty()) {
+      std::cout
+          << "Dry run is not enabled. Are you sure you want to procede?\n";
+      char prompt = '\0';
+      while (prompt != 'Y' && prompt != 'N') {
+        std::cout << "[Y/N] ";
+        std::cout.flush();
+        std::cin >> prompt;
+      }
+
+      if (prompt == 'N') {
+        return 0;
+      }
+    }
+
+    for (auto pathIt = pathsToRename.rbegin(); pathIt != pathsToRename.rend();
+         ++pathIt) {
+      auto const &[path, renamedPath] = *pathIt;
+      fs::rename(path, renamedPath);
+    }
+  } catch (std::runtime_error &error) {
+    std::cerr << error.what() << '\n';
+    return 1;
   }
 }
