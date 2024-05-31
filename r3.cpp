@@ -86,14 +86,12 @@ int main(int argc, char **argv) {
 
   R3Options options = readOptions(argc, argv);
 
-  // Path directory ending with / should be stripped of the trailing slash
-  // so that they can have their basename read.
-  // The root path "/" is an exception, because it does not have a name.
+  // Root serach directory that doesn't end with / should have
+  // a trailing slash added, which will prevent it from being renamed.
   auto dirPath = std::string_view(options.rootSearchDirectory.c_str());
-  if (dirPath.back() == '/' && dirPath != "/") {
-    std::string dirPathWithoutSlash(dirPath);
-    dirPathWithoutSlash.pop_back();
-    options.rootSearchDirectory = fs::path(std::move(dirPathWithoutSlash));
+  if (dirPath.back() != '/') {
+    options.rootSearchDirectory =
+        fs::path(std::string(options.rootSearchDirectory) + "/");
   }
 
   if (!fs::is_directory(options.rootSearchDirectory)) {
@@ -113,6 +111,11 @@ int main(int argc, char **argv) {
 
   search.push_back(options.rootSearchDirectory);
   while (!search.empty()) {
+    if (options.verbose) {
+      std::cout << "Searching " << search.size() << " inodes... Matched "
+                << pathsToRename.size() << "...\n";
+    }
+
     auto path = search.front();
     search.pop_front();
 
@@ -122,11 +125,6 @@ int main(int argc, char **argv) {
           path.filename().c_str(), findRegex, options.replace));
 
       pathsToRename.emplace_back(path, std::move(renamedPath));
-    }
-
-    if (options.verbose) {
-      std::cout << "Searching " << search.size() << " inodes... Matched "
-                << pathsToRename.size() << "...\n";
     }
 
     if (fs::is_directory(path)) {
