@@ -13,12 +13,15 @@
 namespace fs = std::filesystem;
 
 struct R3Options {
+  enum class SearchMode { bfs, dfs };
+
   bool verbose = false;
   bool dryRun = false;
 
   fs::path rootSearchDirectory;
   std::string find;
   std::string replace;
+  SearchMode searchMode = SearchMode::dfs;
 };
 
 [[nodiscard]] R3Options readOptions(int argc, char **argv) {
@@ -33,6 +36,7 @@ struct R3Options {
       {"dir", required_argument, nullptr, 'd'},
       {"find", required_argument, nullptr, 'f'},
       {"replace", required_argument, nullptr, 'r'},
+      {"search-mode", required_argument, nullptr, 's'},
       {"help", no_argument, nullptr, 'h'},
       {nullptr, 0, nullptr, '\0'},
   };
@@ -40,7 +44,7 @@ struct R3Options {
   std::unordered_set<std::string> requiredOptionsStillNeeded = {"dir", "find",
                                                                 "replace"};
 
-  while ((choice = getopt_long(argc, argv, "yvd:f:r:h", long_options.data(),
+  while ((choice = getopt_long(argc, argv, "yvd:f:r:s:h", long_options.data(),
                                &index)) != -1) {
     auto optionIterator =
         std::find_if(long_options.begin(), long_options.end(),
@@ -68,6 +72,18 @@ struct R3Options {
     case 'r':
       options.replace = optarg;
       break;
+    case 's': {
+      std::string_view optargSV(optarg);
+      if (optargSV == "dfs") {
+        options.searchMode = R3Options::SearchMode::dfs;
+      } else if (optargSV == "bfs") {
+        options.searchMode = R3Options::SearchMode::bfs;
+      } else {
+        throw std::runtime_error("Invalid search mode specified.");
+      }
+
+      break;
+    }
     default:
       throw std::runtime_error("Error: invalid option");
     }
@@ -118,8 +134,14 @@ int main(int argc, char **argv) {
                   << pathsToRename.size() << "...\n";
       }
 
-      auto path = search.front();
-      search.pop_front();
+      fs::path path;
+      if (options.searchMode == R3Options::SearchMode::bfs) {
+        path = search.front();
+        search.pop_front();
+      } else {
+        path = search.back();
+        search.pop_back();
+      }
 
       if (std::regex_search(path.filename().c_str(), findRegex)) {
         auto renamedPath = path;
