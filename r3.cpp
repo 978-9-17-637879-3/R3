@@ -109,6 +109,7 @@ int main(int argc, char **argv) {
 
     std::vector<std::pair<fs::path, fs::path>> pathsToRename;
     std::deque<fs::path> search;
+    size_t failedINodeCount = 0;
 
     search.push_back(options.rootSearchDirectory);
     while (!search.empty()) {
@@ -128,10 +129,18 @@ int main(int argc, char **argv) {
         pathsToRename.emplace_back(path, std::move(renamedPath));
       }
 
-      if (fs::is_directory(path)) {
-        for (auto const &child : fs::directory_iterator(path)) {
-          search.push_back(child);
+      try {
+        if (fs::is_directory(path)) {
+          for (auto const &child : fs::directory_iterator(path)) {
+            search.push_back(child);
+          }
         }
+      } catch (std::filesystem::filesystem_error &error) {
+        if (options.verbose) {
+          std::cerr << "Could not search " << path << '\n';
+        }
+
+        ++failedINodeCount;
       }
     }
 
@@ -142,6 +151,10 @@ int main(int argc, char **argv) {
       if (options.verbose) {
         std::cout << path << ' ' << renamedPath << '\n';
       }
+    }
+
+    if (failedINodeCount > 0) {
+      std::cout << "Failed to search " << failedINodeCount << " inodes. ";
     }
 
     std::cout << "Matched " << pathsToRename.size() << " inodes.\n";
@@ -168,7 +181,19 @@ int main(int argc, char **argv) {
     for (auto pathIt = pathsToRename.rbegin(); pathIt != pathsToRename.rend();
          ++pathIt) {
       auto const &[path, renamedPath] = *pathIt;
-      fs::rename(path, renamedPath);
+
+      if (fs::exists(renamedPath)) {
+        std::cerr << "Renamed path " << renamedPath << "already exists!\n";
+        continue;
+      }
+
+      try {
+        fs::rename(path, renamedPath);
+      } catch (fs::filesystem_error &error) {
+        std::cerr << "Failed to rename " << path << " to " << renamedPath
+                  << "!\n";
+        std::cerr << error.what() << "\n";
+      }
     }
   } catch (std::runtime_error &error) {
     std::cerr << error.what() << '\n';
