@@ -1,0 +1,16 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "buildDebug",
+            "command": "g++",
+            "args": [
+                "-g3",
+                "main.cpp",
+                "-o",
+                "r3.out"
+            ],
+            "type": "shell"
+        }
+    ]
+}
