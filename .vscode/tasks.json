@@ -6,7 +6,7 @@
             "command": "g++",
             "args": [
                 "-g3",
-                "main.cpp",
+                "r3.cpp",
                 "-o",
                 "r3.out"
             ],

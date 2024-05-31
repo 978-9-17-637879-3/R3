@@ -12,12 +12,12 @@
             "program": "${workspaceFolder}/r3.out",
             "args": [
                 "-d",
-                "test/",
+                "./",
                 "-f",
-                "test",
+                "a",
                 "-r",
-                "haha",
-                // "--dry-run",
+                "b",
+                "--dry-run",
                 "--verbose"
             ],
             "cwd": "${workspaceFolder}"

@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cassert>
 #include <filesystem>
 #include <getopt.h>
@@ -11,49 +12,53 @@
 
 namespace fs = std::filesystem;
 
-struct Options {
-  int verbose = 0;
-  int dryRun = 0;
+struct R3Options {
+  bool verbose = false;
+  bool dryRun = false;
 
   fs::path rootSearchDirectory;
   std::string find;
   std::string replace;
 };
 
-// TODO: Refactor.
-[[nodiscard]] Options readOptions(int argc, char **argv) {
-  Options options;
+[[nodiscard]] R3Options readOptions(int argc, char **argv) {
+  R3Options options;
 
-  int flagChar;
-  option long_options[] = {/* These options set a flag. */
-                           {"verbose", no_argument, &options.verbose, 1},
-                           {"dry-run", no_argument, &options.dryRun, 1},
-                           /* These options don’t set a flag.
-                              We distinguish them by their indices. */
-                           {"dir", required_argument, nullptr, 'd'},
-                           {"find", required_argument, nullptr, 'f'},
-                           {"replace", required_argument, nullptr, 'r'},
-                           {nullptr, 0, nullptr, 0}};
-  std::unordered_set<int> seenFlags;
-  while (true) {
+  opterr = false; // Let us handle all error output for command line options
+  int choice;
+  int index = 0;
+  std::vector<option> long_options = {
+      {"dry-run", no_argument, nullptr, 'y'},
+      {"verbose", no_argument, nullptr, 'v'},
+      {"dir", required_argument, nullptr, 'd'},
+      {"find", required_argument, nullptr, 'f'},
+      {"replace", required_argument, nullptr, 'r'},
+      {"help", no_argument, nullptr, 'h'},
+      {nullptr, 0, nullptr, '\0'},
+  };
 
-    /* getopt_long stores the option index here. */
-    int option_index = 0;
+  std::unordered_set<std::string> requiredOptionsStillNeeded = {"dir", "find",
+                                                                "replace"};
 
-    flagChar = getopt_long(argc, argv, "d:f:r:", long_options, &option_index);
+  while ((choice = getopt_long(argc, argv, "yvd:f:r:h", long_options.data(),
+                               &index)) != -1) {
+    auto optionIterator =
+        std::find_if(long_options.begin(), long_options.end(),
+                     [choice](const option &opt) { return opt.val == choice; });
 
-    /* Detect the end of the options. */
-    if (flagChar == -1)
+    if (optionIterator != long_options.end()) {
+      requiredOptionsStillNeeded.erase(optionIterator->name);
+    }
+
+    switch (choice) {
+    case 'h':
+      exit(0);
+    case 'y':
+      options.dryRun = true;
       break;
-
-    switch (flagChar) {
-    case 0:
-      /* If this option sets a flag, do nothing else now. */
-      if (long_options[option_index].flag != 0) {
-        break;
-      }
+    case 'v':
+      options.verbose = true;
       break;
-
     case 'd':
       options.rootSearchDirectory = optarg;
       break;
@@ -63,24 +68,14 @@ struct Options {
     case 'r':
       options.replace = optarg;
       break;
-
-    case '?':
-      /* getopt_long already printed an error message. */
-      break;
-
     default:
-      abort();
+      throw std::runtime_error("Error: invalid option");
     }
-
-    seenFlags.insert(flagChar);
   }
 
-  for (auto &long_option : long_options) {
-    if (long_option.flag == nullptr && long_option.val != 0 &&
-        seenFlags.find(long_option.val) == seenFlags.end()) {
-      throw std::runtime_error("Option <" + std::string(long_option.name) +
-                               "> must be supplied!");
-    }
+  if (!requiredOptionsStillNeeded.empty()) {
+    throw std::runtime_error("Option <" + *requiredOptionsStillNeeded.begin() +
+                             "> must be supplied!");
   }
 
   return options;
@@ -89,7 +84,7 @@ struct Options {
 int main(int argc, char **argv) {
   std::ios_base::sync_with_stdio(false);
 
-  Options options = readOptions(argc, argv);
+  R3Options options = readOptions(argc, argv);
 
   // Path directory ending with / should be stripped of the trailing slash
   // so that they can have their basename read.
