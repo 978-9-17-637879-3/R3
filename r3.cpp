@@ -157,7 +157,7 @@ int main(int argc, char **argv) {
             search.push_back(child);
           }
         }
-      } catch (std::filesystem::filesystem_error &error) {
+      } catch (fs::filesystem_error &error) {
         if (options.verbose) {
           std::cerr << "Could not search " << path << '\n';
         }
