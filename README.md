@@ -1,4 +1,6 @@
 # R3
-Recursive Regex Renamer.
+Recursive* Regex Renamer.
 
-(it's actually iterative though)
+Rename files in current and sub-directories with full ECMAscript regex. Useful for mass stripping of data or making file names conform to a certain standard.
+
+*The process was switched to an iterative approach early on in order to prevent stack overflow as well as allow easy switching between BFS and DFS.
